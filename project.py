@@ -7,6 +7,7 @@ from scipy.stats import norm
 import random
 import time
 import sys
+from matplotlib import pyplot as plt
 
 peopleDictionary = []
 
@@ -18,9 +19,9 @@ class Person():
             self.immunity = True
         else:
             self.immunity = False
-        self.contagiousness = 0  # 전염성
+        # self.contagiousness = 0  # 전염성
         # self.mask = False
-        self.contagiousDay = 0  # 감염된 후 지난 시간
+        # self.contagiousDay = 0  # 감염된 후 지난 시간
 
         self.sir_info = 0  # 취약자 : 0, 감염자 : 1, 회복자 : 2
 
@@ -35,6 +36,9 @@ class Person():
             self.teen = False
 
         self.placeToday = 3     # 0: office, 1: classroom, 2: reception, 3: home
+
+        self.asymptomatic = False
+        self.super = False
         #self.mask = 0   # 0, 1, 2이면
     #def wearMask(self):  # 전염력을 반으로 줄임
         #self.contagiousness /= 2
@@ -81,14 +85,16 @@ def initiateSim():  # 시뮬레이션을 시작하는  함수
     for x in range(0, numPeople):  # 인구수만큼의 사람 생성
         peopleDictionary.append(Person(startingImmunity))
     for x in range(0, startingInfecters):  # 생성된 인구수에서 0일째 감염된 사람을 랜덤으로 지정함.
-        peopleDictionary[random.randint(0, len(peopleDictionary) - 1)].contagiousness = int(
-            (norm.rvs(size=1, loc=0.5, scale=0.15)[0] * 10).round(0) * 10)
-    daysContagious = int(input("How many days contagious: "))  # 전염성이 있는 날짜(?) -> 전염 가능한 일수(?)
-    lockdownDay = int(input("Lockdown(봉쇄) 시행일: "))
-    maskDay = int(input("Day for masks to be used: "))  # 마스크 사용 시작일
+        random_ = random.randint(0, len(peopleDictionary) - 1)
+        if peopleDictionary[random_].sir_info == 0:
+            peopleDictionary[random_].sir_info = 1
+        else:
+            x -= 1
+
+    daysContagious = int(input("회복하는데 걸리는 시간(일): "))  # 전염성이 있는 날짜(?) -> 전염 가능한 일수(?)
     type_scenario = ord(input("A~E 시나리오 선택: ").split()[0])  # 시나리오 A~E 설정
     risk = type(type_scenario)
-    return daysContagious, lockdownDay, maskDay, risk
+    return daysContagious, risk
 
 
 def runDay(daysContagious): # TODO: infection 함수 사용!!!!!!!!!!!!!
@@ -98,7 +104,7 @@ def runDay(daysContagious): # TODO: infection 함수 사용!!!!!!!!!!!!!
 
     place_patient = [0,0,0,0]   # 확진자가 있는 곳 체크
 
-    # TODO : 날짜 카운트 해서 평일은 이렇게(평일에는 제택 근무 여부도 추가) 하고 주말에는 이렇게 하고
+        # TODO : 날짜 카운트 해서 평일은 이렇게(평일에는 제택 근무 여부도 추가) 하고 주말에는 이렇게 하고
     # peopleDictionary 에 존재하는 사람들에 대해서 돌림
     for x in peopleDictionary:
         place = 0   # 0: office, 1: classroom, 2: reception, 3: home
@@ -115,13 +121,15 @@ def runDay(daysContagious): # TODO: infection 함수 사용!!!!!!!!!!!!!
         x.placeToday = place
         if x.sir_info == 1: # 확진자인 경우 place_patient 에 어디로 갔는지 카운트
             place_patient[place] += 1
-            x.contagiousDay += 1
-            if x.contagiousness > daysContagious:
-                x.immunity = True
-                x.contagiousness = 0
-                print("|||", peopleDictionary.index(x),"|||")
-        cnt[x.sir_info] += 1
+            if random.random() <= 1/daysContagious:
+                x.sir_info = 2
+            #x.contagiousDay += 1
+            #if x.contagiousDay > daysContagious:    #
+                # TODO : 회복 기준을 sir에 맞게 설정할 필요
+            #    x.sir_info = 2
 
+        cnt[x.sir_info] += 1
+    # TODO : cnt 오류 해결
     # TODO 논리 오류 해결 필요; 같은 장소에 확진자가 얼마나 많든 상관 없는 상태, 즉 가중치를 만들어주어야함.
 
     # person : 개인 한명을 의미함
@@ -129,6 +137,14 @@ def runDay(daysContagious): # TODO: infection 함수 사용!!!!!!!!!!!!!
     for person in [person for person in peopleDictionary if place_patient[person.placeToday] >= 1 and person.sir_info == 0]:
         if random.random() <= (risk[person.placeToday][person.sir_info] / 100):
             person.sir_info = 1
+            person.infection()
+            cnt[x.sir_info] += 1
+            cnt[0] -= 1
+
+    # 회복 recover
+    #for person in [person for person in peopleDictionary if person.contagiousDay]
+
+
 
     return cnt
     # this section simulates the spread, so it only operates on contagious people, thus:
@@ -159,23 +175,27 @@ def runDay(daysContagious): # TODO: infection 함수 사용!!!!!!!!!!!!!
 
 # TODO: txt 파일 생성 법
 # main 함수
-lockdown = False
-daysContagious, lockdownDay, maskDay, risk = initiateSim()  # initializing
+daysContagious, risk = initiateSim()  # initializing
 #saveFile = open("pandemicsave.txt", "a")  # file open
-
+S = []
+I = []
+R = []
 for x in range(0, 100):  # 100일까지 순환하는 것을 의미
-    if x == lockdownDay:
-        lockdown = True
-
-    if x == maskDay:
-        for person in peopleDictionary:
-            person.wearMask()
-
     cnt_sir = runDay(daysContagious)
     print("DAY ", x, "    ", cnt_sir)
+    S.append(cnt_sir[0])
+    I.append(cnt_sir[1])
+    R.append(cnt_sir[2])
+
     # write = str(len([person for person in peopleDictionary if person.contagiousness > 0])) + "\n"
     # saveFile.write(write)
     # print(len([person for person in peopleDictionary if person.contagiousness > 0]),
     #      " people are contagious on this day.")
-
+plt.plot(range(0, 100), S, 'r', label='S')
+plt.plot(range(0, 100), I, 'b', label='I')
+plt.plot(range(0, 100), R, 'g', label='R')
+plt.legend()
+plt.xlabel('Time')
+plt.ylabel('Number of Person')
+plt.show()
 #saveFile.close()
