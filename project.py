@@ -5,7 +5,7 @@
 # TODO : 날짜 추가
 # TODO : Ending day 와 MAX day 추가
 # TODO : 파티랑 집에 있는 확률
-from scipy.stats import norm
+# from scipy.stats import norm
 import random
 import time
 import sys
@@ -18,14 +18,14 @@ Day_of_week = 0  # 0 : 월요일, 1 : 화요일 ~~ 5 : 토요일, 6 : 일요일
 a = np.exp(1.9) / 17
 b = -0.9
 
+# 10.3480368364515
+# 35.5939809961332
 
-def recovered_function(day):
-    if day < 3:
-        return 0
-    elif 3 <= day <= 20:
-        return np.exp(a * (day - 3)) + b
-    else:
-        return 1
+def recovered_function():
+    while True:
+        recover_day = round(random.gauss(20,10.3480368364515))
+        if 3 <= recover_day <= 37:
+            return recover_day
 
 
 # simulation of a single person
@@ -41,13 +41,14 @@ class Person:
             self.teen = False
 
         self.placeToday = 3  # 0: office, 1: classroom, 2: reception, 3: home
-
+        self.recover_day = 0
     def infection(self):  # 감염 걸렸을 때 무증상 여부 판단
         temp = random.randint(0, 100)
         if temp <= 21:  # 21%가 무증상자
             self.intensity = 0
         elif temp <= 31:  # 10%가 슈퍼 감염 환자
             self.intensity = 2
+
 
 
 def type(type_scenario):
@@ -87,6 +88,7 @@ def initiateSim():  # 시뮬레이션을 시작하는  함수
         random_ = random.randint(0, len(peopleDictionary) - 1)
         if peopleDictionary[random_].sir_info == 0:
             peopleDictionary[random_].sir_info = 1
+            peopleDictionary[random_].recover_day = recovered_function()
         else:
             x -= 1
 
@@ -119,7 +121,7 @@ def runDay(DOW, home):
         if x.sir_info == 1:  # 확진자인 경우 place_patient 에 어디로 갔는지 카운트
             place_patient[place] += 1
             x.contagiousDays += 1
-            if random.random() <= recovered_function(x.contagiousDays):  # 회복
+            if x.contagiousDays == x.recover_day:  # 회복
                 x.sir_info = 2
 
         cnt[x.sir_info] += 1
@@ -128,9 +130,10 @@ def runDay(DOW, home):
     # 취약자들 중에서만 경우를 생각해보자!
     for person in [person for person in peopleDictionary if
                    place_patient[person.placeToday] >= 1 and person.sir_info == 0]:
-        if random.random() <= (risk[person.placeToday][person.intensity] / 100):
+        if random.random() <= (risk[person.placeToday][person.intensity] / 100):    # 감염되는 경우 측정
             person.sir_info = 1
             person.infection()
+            person.recover_day = recovered_function()
             cnt[x.sir_info] += 1
             cnt[0] -= 1
 
